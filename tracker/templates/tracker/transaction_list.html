@@ -1,0 +1,79 @@
+{% extends "tracker/base.html" %}
+
+{% block title %}All Transactions | Expense Tracker{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold"><i class="bi bi-list-ul me-2 text-primary"></i>All Transactions</h2>
+    <a href="{% url 'transaction-add' %}" class="btn btn-primary rounded-pill">
+        <i class="bi bi-plus-lg me-1"></i>Add New
+    </a>
+</div>
+
+{% if transactions %}
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr class="text-muted small">
+                    <th class="ps-4">Date</th>
+                    <th>Description</th>
+                    <th>Category</th>
+                    <th>Type</th>
+                    <th class="text-end">Amount</th>
+                    <th class="text-center pe-4">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for txn in transactions %}
+                <tr>
+                    <td class="ps-4 text-muted small">{{ txn.date|date:"d M Y" }}</td>
+                    <td class="fw-medium">{{ txn.description|default:"—" }}</td>
+                    <td><span class="badge bg-light text-dark border">{{ txn.category|default:"Uncategorized" }}</span></td>
+                    <td>
+                        {% if txn.type == 'income' %}
+                        <span class="badge rounded-pill bg-success-subtle text-success"><i class="bi bi-arrow-down-short"></i> Income</span>
+                        {% else %}
+                        <span class="badge rounded-pill bg-danger-subtle text-danger"><i class="bi bi-arrow-up-short"></i> Expense</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end fw-semibold {% if txn.type == 'income' %}text-success{% else %}text-danger{% endif %}">
+                        {% if txn.type == 'income' %}+{% else %}-{% endif %}₹{{ txn.amount|floatformat:2 }}
+                    </td>
+                    <td class="text-center pe-4">
+                        <a href="{% url 'transaction-edit' txn.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill me-1"><i class="bi bi-pencil"></i></a>
+                        <a href="{% url 'transaction-delete' txn.pk %}" class="btn btn-sm btn-outline-danger rounded-pill"><i class="bi bi-trash3"></i></a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<nav class="mt-4 d-flex justify-content-center">
+    <ul class="pagination">
+        {% if page_obj.has_previous %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">&laquo;</a></li>
+        {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+        <li class="page-item {% if page_obj.number == num %}active{% endif %}"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+        {% endfor %}
+        {% if page_obj.has_next %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">&raquo;</a></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% else %}
+<div class="card border-0 shadow-sm">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-inbox fs-1 text-muted"></i>
+        <h5 class="text-muted fw-normal mt-3">No transactions yet</h5>
+        <a href="{% url 'transaction-add' %}" class="btn btn-primary rounded-pill mt-3"><i class="bi bi-plus-lg me-1"></i>Add Transaction</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

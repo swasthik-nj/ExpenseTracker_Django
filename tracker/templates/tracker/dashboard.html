@@ -1,0 +1,286 @@
+{% extends "tracker/base.html" %}
+{% load tracker_extras %}
+
+{% block title %}Dashboard | Expense Tracker{% endblock %}
+
+{% block content %}
+<!-- ─── Month / Year Filter ─── -->
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold mb-2 mb-md-0">
+        <i class="bi bi-speedometer2 me-2 text-primary"></i>Dashboard
+    </h2>
+    <form method="get" class="d-flex gap-2 align-items-center" id="filterForm">
+        <select name="month" class="form-select form-select-sm filter-select" onchange="this.form.submit()">
+            {% for m_val, m_name in months %}
+            <option value="{{ m_val }}" {% if m_val == selected_month %}selected{% endif %}>{{ m_name }}</option>
+            {% endfor %}
+        </select>
+        <select name="year" class="form-select form-select-sm filter-select" onchange="this.form.submit()">
+            {% for y in years %}
+            <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+
+<!-- ─── Summary Cards ─── -->
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="card summary-card income-card h-100">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="icon-box income-icon">
+                    <i class="bi bi-arrow-down-circle-fill fs-3"></i>
+                </div>
+                <div>
+                    <p class="text-muted mb-1 small fw-medium">Total Income</p>
+                    <h4 class="fw-bold mb-0 text-success">₹{{ total_income|floatformat:2 }}</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card summary-card expense-card h-100">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="icon-box expense-icon">
+                    <i class="bi bi-arrow-up-circle-fill fs-3"></i>
+                </div>
+                <div>
+                    <p class="text-muted mb-1 small fw-medium">Total Expenses</p>
+                    <h4 class="fw-bold mb-0 text-danger">₹{{ total_expense|floatformat:2 }}</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card summary-card balance-card h-100">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="icon-box balance-icon">
+                    <i class="bi bi-piggy-bank-fill fs-3"></i>
+                </div>
+                <div>
+                    <p class="text-muted mb-1 small fw-medium">Balance</p>
+                    <h4 class="fw-bold mb-0 {% if balance >= 0 %}text-primary{% else %}text-danger{% endif %}">
+                        {% if balance < 0 %}-{% endif %}₹{{ balance|abs_value|floatformat:2 }}
+                    </h4>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ─── Charts ─── -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card chart-card h-100">
+            <div class="card-header bg-transparent border-0 pt-4 px-4">
+                <h6 class="fw-semibold mb-0"><i class="bi bi-pie-chart-fill me-2 text-primary"></i>Expenses by Category</h6>
+            </div>
+            <div class="card-body d-flex justify-content-center align-items-center">
+                <div class="chart-container-doughnut">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card chart-card h-100">
+            <div class="card-header bg-transparent border-0 pt-4 px-4">
+                <h6 class="fw-semibold mb-0"><i class="bi bi-graph-up me-2 text-primary"></i>Income vs Expense Trend</h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-container-line">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ─── Recent Transactions ─── -->
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-3 px-4">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Recent Transactions</h6>
+        <a href="{% url 'transaction-list' %}" class="btn btn-sm btn-outline-primary rounded-pill">
+            View All <i class="bi bi-arrow-right ms-1"></i>
+        </a>
+    </div>
+    <div class="card-body p-0">
+        {% if transactions %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr class="text-muted small">
+                        <th class="ps-4">Date</th>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th>Type</th>
+                        <th class="text-end">Amount</th>
+                        <th class="text-center pe-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for txn in transactions %}
+                    <tr>
+                        <td class="ps-4 text-muted small">{{ txn.date|date:"d M Y" }}</td>
+                        <td class="fw-medium">{{ txn.description|default:"—" }}</td>
+                        <td>
+                            <span class="badge bg-light text-dark border">{{ txn.category|default:"Uncategorized" }}</span>
+                        </td>
+                        <td>
+                            {% if txn.type == 'income' %}
+                                <span class="badge rounded-pill bg-success-subtle text-success">
+                                    <i class="bi bi-arrow-down-short"></i> Income
+                                </span>
+                            {% else %}
+                                <span class="badge rounded-pill bg-danger-subtle text-danger">
+                                    <i class="bi bi-arrow-up-short"></i> Expense
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end fw-semibold {% if txn.type == 'income' %}text-success{% else %}text-danger{% endif %}">
+                            {% if txn.type == 'income' %}+{% else %}-{% endif %}₹{{ txn.amount|floatformat:2 }}
+                        </td>
+                        <td class="text-center pe-4">
+                            <a href="{% url 'transaction-edit' txn.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill me-1" title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <a href="{% url 'transaction-delete' txn.pk %}" class="btn btn-sm btn-outline-danger rounded-pill" title="Delete">
+                                <i class="bi bi-trash3"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <!-- Empty state -->
+        <div class="text-center py-5">
+            <div class="empty-state-icon mb-3">
+                <i class="bi bi-inbox fs-1 text-muted"></i>
+            </div>
+            <h5 class="text-muted fw-normal">No transactions for this month</h5>
+            <p class="text-muted small mb-3">Start by adding your first transaction</p>
+            <a href="{% url 'transaction-add' %}" class="btn btn-primary rounded-pill px-4">
+                <i class="bi bi-plus-lg me-1"></i>Add Transaction
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ── Color palette for charts ──
+    const palette = [
+        '#6366f1', '#8b5cf6', '#a855f7', '#ec4899', '#f43f5e',
+        '#f97316', '#eab308', '#22c55e', '#14b8a6', '#06b6d4',
+        '#3b82f6', '#6d28d9',
+    ];
+
+    // ── Doughnut Chart: Expenses by Category ──
+    const catLabels = {{ chart_labels|safe }};
+    const catData = {{ chart_data|safe }};
+
+    if (catLabels.length > 0) {
+        const ctx1 = document.getElementById('categoryChart').getContext('2d');
+        new Chart(ctx1, {
+            type: 'doughnut',
+            data: {
+                labels: catLabels,
+                datasets: [{
+                    data: catData,
+                    backgroundColor: palette.slice(0, catLabels.length),
+                    borderWidth: 0,
+                    hoverOffset: 8,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '65%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 16,
+                            usePointStyle: true,
+                            pointStyleWidth: 10,
+                            font: { family: 'Inter', size: 12 }
+                        }
+                    }
+                }
+            }
+        });
+    } else {
+        document.getElementById('categoryChart').parentElement.innerHTML =
+            '<p class="text-muted text-center py-4">No expense data for this month</p>';
+    }
+
+    // ── Line Chart: Income vs Expense Trend ──
+    const lineLabels = {{ line_labels|safe }};
+    const lineIncome = {{ line_income|safe }};
+    const lineExpense = {{ line_expense|safe }};
+
+    if (lineLabels.length > 0) {
+        const ctx2 = document.getElementById('trendChart').getContext('2d');
+        new Chart(ctx2, {
+            type: 'line',
+            data: {
+                labels: lineLabels,
+                datasets: [
+                    {
+                        label: 'Income',
+                        data: lineIncome,
+                        borderColor: '#22c55e',
+                        backgroundColor: 'rgba(34,197,94,0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                    },
+                    {
+                        label: 'Expense',
+                        data: lineExpense,
+                        borderColor: '#f43f5e',
+                        backgroundColor: 'rgba(244,63,94,0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            usePointStyle: true,
+                            font: { family: 'Inter', size: 12 }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: { font: { family: 'Inter', size: 11 } }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { family: 'Inter', size: 11 } }
+                    }
+                }
+            }
+        });
+    } else {
+        document.getElementById('trendChart').parentElement.innerHTML =
+            '<p class="text-muted text-center py-4">No transaction data for this month</p>';
+    }
+});
+</script>
+{% endblock %}
